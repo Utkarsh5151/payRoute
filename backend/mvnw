@@ -1,0 +1,16 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Maven Start Up Bash script
+# ----------------------------------------------------------------------------
+
+export MAVEN_PROJECTBASEDIR="${MAVEN_BASEDIR:-$(pwd)}"
+WRAPPER_JAR="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.jar"
+WRAPPER_PROPERTIES="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.properties"
+
+if [ ! -e "$WRAPPER_JAR" ]; then
+    mkdir -p "$MAVEN_PROJECTBASEDIR/.mvn/wrapper"
+    echo "Downloading maven-wrapper.jar..."
+    curl -o "$WRAPPER_JAR" https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.2.0/maven-wrapper-3.2.0.jar
+fi
+
+exec java -Dmaven.multiModuleProjectDirectory="$MAVEN_PROJECTBASEDIR" -jar "$WRAPPER_JAR" "$@"

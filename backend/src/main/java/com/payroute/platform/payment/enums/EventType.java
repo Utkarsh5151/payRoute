@@ -1,0 +1,11 @@
+package com.payroute.platform.payment.enums;
+
+public enum EventType {
+    PAYMENT_CREATED,
+    PAYMENT_STATUS_CHANGED,
+    PAYMENT_ATTEMPT_STARTED,
+    PAYMENT_ATTEMPT_COMPLETED,
+    REFUND_INITIATED,
+    REFUND_COMPLETED,
+    REFUND_FAILED
+}

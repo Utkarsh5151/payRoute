@@ -1,0 +1,31 @@
+name:                haskell-routing-service
+version:             0.1.0.0
+synopsis:            Intelligent pure functional payment routing rules engine
+license:             MIT
+author:              PayRoute Team
+dependencies:
+  - base >= 4.7 && < 5
+  - aeson >= 2.0
+  - text >= 1.2
+  - scotty >= 0.12
+  - http-types >= 0.12
+  - wai >= 3.2
+  - wai-cors >= 0.2
+  - time >= 1.9
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Types
+    - RulesEngine
+
+executables:
+  haskell-routing-service-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - haskell-routing-service
