@@ -36,14 +36,7 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PaymentResponse getPayment(UUID id, UUID merchantId) {
-        Payment payment;
-        if (merchantId != null) {
-            payment = paymentRepository.findByIdAndMerchantId(id, merchantId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
-        } else {
-            payment = paymentRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
-        }
+        Payment payment = requireOwnedPayment(id, merchantId);
 
         int attempts = (int) attemptRepository.countByPaymentId(payment.getId());
         return PaymentResponse.from(payment, attempts);
@@ -52,6 +45,7 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public PageResponse<PaymentResponse> listPayments(UUID merchantId, PaymentStatus status,
                                                       PaymentMethod method, Pageable pageable) {
+        requireMerchantId(merchantId);
         Page<Payment> page;
 
         if (status != null && method != null) {
@@ -75,16 +69,34 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public List<PaymentAttemptDto> getAttempts(UUID paymentId) {
+    public List<PaymentAttemptDto> getAttempts(UUID paymentId, UUID merchantId) {
+        requireOwnedPayment(paymentId, merchantId);
         return attemptRepository.findByPaymentIdOrderByAttemptNumberAsc(paymentId).stream()
                 .map(PaymentAttemptDto::from)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<PaymentEventDto> getEvents(UUID paymentId) {
+    public List<PaymentEventDto> getEvents(UUID paymentId, UUID merchantId) {
+        requireOwnedPayment(paymentId, merchantId);
         return eventRepository.findByPaymentIdOrderByCreatedAtAsc(paymentId).stream()
                 .map(PaymentEventDto::from)
                 .collect(Collectors.toList());
+    }
+    @Transactional(readOnly = true)
+    public void verifyOwnership(UUID paymentId, UUID merchantId) {
+        requireOwnedPayment(paymentId, merchantId);
+    }
+
+    private Payment requireOwnedPayment(UUID paymentId, UUID merchantId) {
+        requireMerchantId(merchantId);
+        return paymentRepository.findByIdAndMerchantId(paymentId, merchantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + paymentId));
+    }
+
+    private void requireMerchantId(UUID merchantId) {
+        if (merchantId == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Merchant identity is required");
+        }
     }
 }

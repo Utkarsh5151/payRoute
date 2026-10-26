@@ -6,6 +6,8 @@ import com.payroute.platform.common.exception.BadRequestException;
 import com.payroute.platform.common.util.SecurityUtils;
 import com.payroute.platform.payment.dto.RefundResponse;
 import com.payroute.platform.payment.service.RefundService;
+import com.payroute.platform.merchant.service.MerchantService;
+import com.payroute.platform.merchant.entity.Merchant;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -21,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class RefundController {
 
     private final RefundService refundService;
+    private final MerchantService merchantService;
 
-    public RefundController(RefundService refundService) {
+    public RefundController(RefundService refundService, MerchantService merchantService) {
         this.refundService = refundService;
+        this.merchantService = merchantService;
     }
 
     @GetMapping
@@ -33,7 +37,9 @@ public class RefundController {
         UserPrincipal principal = SecurityUtils.getCurrentUserPrincipal()
                 .orElseThrow(() -> new BadRequestException("User must be authenticated"));
 
-        List<RefundResponse> refunds = refundService.getRefundsForMerchant(principal.getMerchantId());
+        List<RefundResponse> refunds = refundService.getRefundsForMerchant(merchantService.findByUserId(principal.getId())
+                .map(Merchant::getId)
+                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Merchant account required")));
         return ResponseEntity.ok(ApiResponse.success(refunds));
     }
 }
