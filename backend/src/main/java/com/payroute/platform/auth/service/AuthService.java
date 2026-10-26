@@ -52,6 +52,9 @@ public class AuthService {
         }
 
         Role role = request.getRole() != null ? request.getRole() : Role.MERCHANT;
+        if (role == Role.ADMIN) {
+            throw new BadRequestException("Admin accounts cannot be created through public registration");
+        }
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
         User user = new User(request.getUsername(), request.getEmail().toLowerCase().trim(), encodedPassword, role);
