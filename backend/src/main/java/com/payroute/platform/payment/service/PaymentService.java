@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -36,14 +37,11 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public PaymentResponse getPayment(UUID id, UUID merchantId) {
-        Payment payment;
-        if (merchantId != null) {
-            payment = paymentRepository.findByIdAndMerchantId(id, merchantId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
-        } else {
-            payment = paymentRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
+        if (merchantId == null) {
+            throw new AccessDeniedException("Merchant access required");
         }
+        Payment payment = paymentRepository.findByIdAndMerchantId(id, merchantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + id));
 
         int attempts = (int) attemptRepository.countByPaymentId(payment.getId());
         return PaymentResponse.from(payment, attempts);
@@ -75,14 +73,16 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public List<PaymentAttemptDto> getAttempts(UUID paymentId) {
+    public List<PaymentAttemptDto> getAttempts(UUID paymentId, UUID merchantId) {
+        getPayment(paymentId, merchantId);
         return attemptRepository.findByPaymentIdOrderByAttemptNumberAsc(paymentId).stream()
                 .map(PaymentAttemptDto::from)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<PaymentEventDto> getEvents(UUID paymentId) {
+    public List<PaymentEventDto> getEvents(UUID paymentId, UUID merchantId) {
+        getPayment(paymentId, merchantId);
         return eventRepository.findByPaymentIdOrderByCreatedAtAsc(paymentId).stream()
                 .map(PaymentEventDto::from)
                 .collect(Collectors.toList());
