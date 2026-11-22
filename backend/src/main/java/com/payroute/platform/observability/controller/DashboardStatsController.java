@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import com.payroute.platform.merchant.service.MerchantService;
+import com.payroute.platform.merchant.entity.Merchant;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,15 +36,17 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Observability & Dashboard", description = "Aggregated KPI metrics, provider health cards, and analytical summaries")
 public class DashboardStatsController {
 
+    private final MerchantService merchantService;
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentProviderRepository providerRepository;
     private final ProviderCircuitBreakerManager circuitBreakerManager;
 
-    public DashboardStatsController(PaymentRepository paymentRepository,
+    public DashboardStatsController(MerchantService merchantService, PaymentRepository paymentRepository,
                                     PaymentAttemptRepository attemptRepository,
                                     PaymentProviderRepository providerRepository,
                                     ProviderCircuitBreakerManager circuitBreakerManager) {
+        this.merchantService = merchantService;
         this.paymentRepository = paymentRepository;
         this.attemptRepository = attemptRepository;
         this.providerRepository = providerRepository;
@@ -55,19 +60,19 @@ public class DashboardStatsController {
                 .orElseThrow(() -> new BadRequestException("User must be authenticated"));
 
         UUID merchantId = principal.getMerchantId();
+        if (merchantId == null) merchantId = merchantService.findByUserId(principal.getId()).map(Merchant::getId).orElse(null);
+        if (merchantId == null) throw new AccessDeniedException("Merchant access required");
 
-        long total = merchantId != null ? paymentRepository.countByMerchantId(merchantId) : paymentRepository.count();
-        long successful = merchantId != null ? paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.SUCCESS) : paymentRepository.countByStatus(PaymentStatus.SUCCESS);
-        long failed = merchantId != null ? paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.FAILED) : paymentRepository.countByStatus(PaymentStatus.FAILED);
-        long pending = merchantId != null ? paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.PROCESSING) : paymentRepository.countByStatus(PaymentStatus.PROCESSING);
+        long total = paymentRepository.countByMerchantId(merchantId);
+        long successful = paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.SUCCESS);
+        long failed = paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.FAILED);
+        long pending = paymentRepository.countByMerchantIdAndStatus(merchantId, PaymentStatus.PROCESSING);
 
         double successRate = total > 0 ? ((double) successful / total) * 100.0 : 100.0;
 
         // Fetch recent payments
         var pageReq = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
-        List<Payment> recentList = merchantId != null ?
-                paymentRepository.findByMerchantId(merchantId, pageReq).getContent() :
-                paymentRepository.findAll(pageReq).getContent();
+        List<Payment> recentList = paymentRepository.findByMerchantId(merchantId, pageReq).getContent();
 
         List<PaymentResponse> recentDtos = recentList.stream()
                 .map(p -> {
