@@ -22,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -68,11 +69,23 @@ public class PaymentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
+    private UUID currentMerchantId() {
+        UserPrincipal principal = SecurityUtils.getCurrentUserPrincipal()
+                .orElseThrow(() -> new AccessDeniedException("Authentication required"));
+        UUID merchantId = principal.getMerchantId();
+        if (merchantId == null) {
+            merchantId = merchantService.findByUserId(principal.getId()).map(Merchant::getId).orElse(null);
+        }
+        if (merchantId == null) {
+            throw new AccessDeniedException("Merchant access required");
+        }
+        return merchantId;
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Retrieve payment details by ID")
     public ResponseEntity<ApiResponse<PaymentResponse>> getPayment(@PathVariable UUID id) {
-        UserPrincipal principal = SecurityUtils.getCurrentUserPrincipal().orElse(null);
-        UUID merchantId = principal != null ? principal.getMerchantId() : null;
+        UUID merchantId = currentMerchantId();
         PaymentResponse response = paymentService.getPayment(id, merchantId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -101,14 +114,14 @@ public class PaymentController {
     @GetMapping("/{id}/attempts")
     @Operation(summary = "Get audit trail of provider invocation attempts for a payment")
     public ResponseEntity<ApiResponse<List<PaymentAttemptDto>>> getPaymentAttempts(@PathVariable UUID id) {
-        List<PaymentAttemptDto> attempts = paymentService.getAttempts(id);
+        List<PaymentAttemptDto> attempts = paymentService.getAttempts(id, currentMerchantId());
         return ResponseEntity.ok(ApiResponse.success(attempts));
     }
 
     @GetMapping("/{id}/events")
     @Operation(summary = "Get state transition event timeline for a payment")
     public ResponseEntity<ApiResponse<List<PaymentEventDto>>> getPaymentEvents(@PathVariable UUID id) {
-        List<PaymentEventDto> events = paymentService.getEvents(id);
+        List<PaymentEventDto> events = paymentService.getEvents(id, currentMerchantId());
         return ResponseEntity.ok(ApiResponse.success(events));
     }
 
@@ -131,7 +144,7 @@ public class PaymentController {
     @GetMapping("/{id}/refunds")
     @Operation(summary = "Get list of refunds associated with a payment")
     public ResponseEntity<ApiResponse<List<RefundResponse>>> getPaymentRefunds(@PathVariable UUID id) {
-        List<RefundResponse> refunds = refundService.getRefundsForPayment(id);
+        List<RefundResponse> refunds = (paymentService.getPayment(id, currentMerchantId()) != null ? refundService.getRefundsForPayment(id) : List.of());
         return ResponseEntity.ok(ApiResponse.success(refunds));
     }
 }
